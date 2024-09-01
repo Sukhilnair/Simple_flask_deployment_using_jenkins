@@ -60,3 +60,6 @@ This pipeline is defined using Jenkins Declarative Pipeline syntax and has five 
 ## Notes:
 - Ensure that the EC2 instance has Python, Flask, and other dependencies installed.
 - Modify the SSH credentials, EC2 details, and email recipient in the Jenkinsfile as needed.
+
+## Final Output
+![Final output](./jenkins.jpg)
