@@ -3,14 +3,10 @@ pipeline {
 
     environment {
         GIT_REPO = "https://github.com/Sukhilnair/Simple_flask_deployment_using_jenkins.git"
-        EC2_USER = 'ubuntu' 
-        EC2_HOST = '3.109.88.225' 
-        DEPLOY_DIR = '/home/ubuntu/flask-app' 
+        EC2_USER = 'ubuntu'
+        EC2_HOST = '3.109.88.225'
+        DEPLOY_DIR = '/home/ubuntu/flask-app'
         SSH_CRED_ID = "EC2-access"
-    }
-
-    options {
-        failFast true 
     }
 
     stages {
@@ -22,30 +18,39 @@ pipeline {
 
         stage('Build') {
             steps {
-                sh 'pip install -r Simple_flask_deployment_using_jenkins/requirements.txt'
+                sh '''
+                    python3 -m venv venv
+                    . venv/bin/activate
+                    pip install -r requirements.txt
+                '''
             }
         }
 
         stage('Test') {
             steps {
                 sh '''
-                    cd Simple_flask_deployment_using_jenkins
-                    pytest 
+                    . venv/bin/activate
+                    pytest app_test.py
                 '''
             }
             post {
-                unsuccessful {
+                failure {
                     error "Tests failed. Stopping the pipeline."
                 }
             }
         }
 
         stage('Copy to EC2') {
+            when {
+                expression {
+                    return currentBuild.result == null || currentBuild.result == 'SUCCESS'
+                }
+            }
             steps {
                 sshagent (credentials: ["${env.SSH_CRED_ID}"]) {
-                    sh """
-                    scp -o StrictHostKeyChecking=no -r *.py ${env.EC2_USER}@${env.EC2_HOST}:${env.DEPLOY_DIR}
-                    """
+                    sh '''
+                        bash -c 'scp -o StrictHostKeyChecking=no -r * ${EC2_USER}@${EC2_HOST}:${DEPLOY_DIR}'
+                    '''
                 }
             }
         }
@@ -58,14 +63,11 @@ pipeline {
             }
             steps {
                 sshagent (credentials: ["${env.SSH_CRED_ID}"]) {
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no ${env.EC2_USER}@${env.EC2_HOST} << EOF
-                            mkdir -p ${env.DEPLOY_DIR}
-                            cd ${env.DEPLOY_DIR}
-                            pip install -r requirements.txt
-                            nohup python3 app.py > app.log 2>&1 &
-                        EOF
-                    '''
+                    sh """
+                    ssh -o StrictHostKeyChecking=no ${env.EC2_USER}@${env.EC_HOST} '
+                        cd ${DEPLOY_DIR} ; sudo bash run.sh
+                    '
+                    """
                 }
             }
         }
