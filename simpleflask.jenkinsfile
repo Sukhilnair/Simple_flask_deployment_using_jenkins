@@ -1,0 +1,81 @@
+pipeline {
+    agent any
+
+    environment {
+        GIT_REPO = "https://github.com/Sukhilnair/Simple_flask_deployment_using_jenkins.git"
+        EC2_USER = 'ubuntu' 
+        EC2_HOST = '3.109.88.225' 
+        DEPLOY_DIR = '/home/ubuntu/flask-app' 
+        SSH_CRED_ID = "EC2-access"
+    }
+
+    options {
+        failFast true 
+    }
+
+    stages {
+        stage('Code clone') {
+            steps {
+                git branch: 'main', url: "${env.GIT_REPO}"
+            }
+        }
+
+        stage('Build') {
+            steps {
+                sh 'pip install -r Simple_flask_deployment_using_jenkins/requirements.txt'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh '''
+                    cd Simple_flask_deployment_using_jenkins
+                    pytest 
+                '''
+            }
+            post {
+                unsuccessful {
+                    error "Tests failed. Stopping the pipeline."
+                }
+            }
+        }
+
+        stage('Copy to EC2') {
+            steps {
+                sshagent (credentials: ["${env.SSH_CRED_ID}"]) {
+                    sh """
+                    scp -o StrictHostKeyChecking=no -r *.py ${env.EC2_USER}@${env.EC2_HOST}:${env.DEPLOY_DIR}
+                    """
+                }
+            }
+        }
+
+        stage('Deploy') {
+            when {
+                expression {
+                    return currentBuild.result == null || currentBuild.result == 'SUCCESS'
+                }
+            }
+            steps {
+                sshagent (credentials: ["${env.SSH_CRED_ID}"]) {
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no ${env.EC2_USER}@${env.EC2_HOST} << EOF
+                            mkdir -p ${env.DEPLOY_DIR}
+                            cd ${env.DEPLOY_DIR}
+                            pip install -r requirements.txt
+                            nohup python3 app.py > app.log 2>&1 &
+                        EOF
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            mail to: 'sukhilnair1996@gmail.com',
+                 subject: "Jenkins Build: ${currentBuild.fullDisplayName}",
+                 body: "Build ${currentBuild.result}: ${currentBuild.fullDisplayName}\nMore info at: ${env.BUILD_URL}"
+        }
+    }
+}
