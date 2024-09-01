@@ -2,7 +2,7 @@
 sudo apt-get install screen -y
 sudo kill -9 `ps aux | grep app.py | awk '{print $2}'`
 SESSION_NAME="flask_app"
-FLASK_COMMAND="python3 /home/ubuntu/app.py"
+FLASK_COMMAND="python3 /home/ubuntu/flask-app/app.py"
 
 if ! command -v tmux &> /dev/null
 then
